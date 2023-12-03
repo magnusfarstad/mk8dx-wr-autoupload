@@ -1,10 +1,13 @@
 from bs4 import BeautifulSoup
 import requests
+from datetime import time, timedelta, datetime
+import re
 
 class AutoUploader:
     def __init__(self) -> None:
-        self.wr = WorldRecord
-        self.previousWr = WorldRecord
+        self.wrs = None
+        self.wr = None
+        self.previousWr = None
 
 
     def isConfigEmpty(self):
@@ -51,14 +54,15 @@ class AutoUploader:
         for row in rows:
             record = row.find_all('td')
             record = [r.text for r in record]
-            if record:
+            if len(record) == 14:
                 #print(record.text)
                 record.append(map)
                 record.append(cc)
                 record = WorldRecord(record)
                 records.append(record)
 
-        return records
+        self.wr = records[-1]
+        self.previousWr = records[-2]
 
 
     def selectFromLatestWrs(self):
@@ -66,11 +70,50 @@ class AutoUploader:
 
     
     def generateVideoTitle(self):
-        return f"{self.map} [{self.cc}] - {self.time} - {self.player} (Mario Kart 8 Deluxe World Record)"
+        w = self.wr
+        print(w)
+        return f"{w.map} [{w.cc}] - {w.time} - {w.player} (Mario Kart 8 Deluxe World Record)"
 
-    
+
     def generateVideoDescription(self):
-        return 
+        lasted = "less than one" if self.wr.daysSinceLastWr == "<1" else self.wr.daysSinceLastWr
+        print(f"""
+        {self.getTimeDifference()} improvement over previous WR: {self.previousWr.time} by {self.previousWr.player} on {self.previousWr.date} lasted ({lasted} day{"" if lasted == "less than one" else "s"})
+        """)
+
+    def getTimeDifference(self):
+        wrTime = self.convertTimeString(self.wr.time)
+        wrTime = datetime(2000, 1, 1,
+            minute=wrTime["minutes"],
+            second=wrTime["seconds"],
+            microsecond=wrTime["milliseconds"]*1000
+        )
+
+        previousWrTime = self.convertTimeString(self.previousWr.time)
+        previousWrTime = datetime(2000, 1, 1,
+            minute=previousWrTime["minutes"],
+            second=previousWrTime["seconds"],
+            microsecond=previousWrTime["milliseconds"]*1000
+        )
+
+        current, previous = wrTime.timestamp(), previousWrTime.timestamp()
+        difference = round(previous - current, 3)
+
+        return difference
+
+
+    def convertTimeString(self, time):
+        time = time.replace("'", " ").replace("\"", " ").split()
+        try:
+            converted = {
+                "minutes": int(time[0]),
+                "seconds": int(time[1]),
+                "milliseconds": int(time[2])
+            }
+        except IndexError:
+            print("Index error occured when formatting time from scraped data")
+
+        return converted  
 
     
     def getApiCredentials(self):
@@ -98,18 +141,10 @@ class WorldRecord:
 
 while True:
     auto = AutoUploader()
-    worldRecords: list = auto.scrapeWr()
-    previousWr, wr = worldRecords[-2:]
-    print(wr.date,
-          wr.time,
-          wr.player,
-          wr.daysSinceLastWr, 
-          wr.laps,
-          wr.coins,
-          wr.shrooms,
-          wr.character,
-          wr.combo,
-          wr.cc)
+    auto.scrapeWr()
+    print(auto.generateVideoTitle())
+    wr = auto.wr
+    auto.generateVideoDescription()
 
 
 # scrape
