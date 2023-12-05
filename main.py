@@ -3,15 +3,14 @@ import requests
 from datetime import time, timedelta, datetime
 import re
 
+global recordedBy
+recordedBy = "test"
+
 class AutoUploader:
     def __init__(self) -> None:
         self.wrs = None
         self.wr = None
         self.previousWr = None
-
-
-    def isConfigEmpty(self):
-        pass
 
 
     def getVideoFileURI(self):
@@ -20,15 +19,6 @@ class AutoUploader:
 
     def getWrURL(self):
         return input("World record URL to parse: ")
-
-
-    # Kanskje?
-    def getConfAttr(self, attr):
-        pass
-
-
-    def getDaysSinceLastWr(self):
-        pass
 
 
     def scrapeWr(self):
@@ -55,31 +45,47 @@ class AutoUploader:
             record = row.find_all('td')
             record = [r.text for r in record]
             if len(record) == 14:
-                #print(record.text)
+                userProfile = row.find("a", href=re.compile("profile.php"))['href']
                 record.append(map)
                 record.append(cc)
+                record.append(userProfile)
                 record = WorldRecord(record)
                 records.append(record)
 
         self.wr = records[-1]
         self.previousWr = records[-2]
-
-
-    def selectFromLatestWrs(self):
-        return self.lastWr
+        print("Successfully scraped world records:\n"
+              f"  1st: {self.wr.time} ({self.wr.player})\n"
+              f"  2nd: {self.previousWr.time} ({self.previousWr.player})")
 
     
     def generateVideoTitle(self):
-        w = self.wr
-        print(w)
-        return f"{w.map} [{w.cc}] - {w.time} - {w.player} (Mario Kart 8 Deluxe World Record)"
+        wr = self.wr
+        title = f"{wr.map} [{wr.cc}] - {wr.time} - {wr.player} (Mario Kart 8 Deluxe World Record)"
+        print(f"Generated video title:\n  {title}")
+        return title
 
 
     def generateVideoDescription(self):
-        lasted = "less than one" if self.wr.daysSinceLastWr == "<1" else self.wr.daysSinceLastWr
-        print(f"""
-        {self.getTimeDifference()} improvement over previous WR: {self.previousWr.time} by {self.previousWr.player} on {self.previousWr.date} lasted ({lasted} day{"" if lasted == "less than one" else "s"})
-        """)
+        current, prev = self.wr, self.previousWr
+        plural = "s" if current.lasted != "<1" else ""
+        desc = (f"Date: {current.date}\n"
+                f"{self.getTimeDifference()} improvement over previous WR: {prev.time} by {prev.player} on {prev.date} lasted ({current.lasted} day{plural})\n\n"
+                f"Combo: {current.character} / {current.kart} / {current.wheels} / {current.glider}\n"
+                f"Splits: {current.splits}\n"
+                f"Mushrooms: {current.shrooms}\n"
+                f"Coins: {current.coins}\n"
+                f"User profile: https://www.mkwrs.com/mk8dx/{current.profile}\n\n"
+                "See all the current and past WRs for MK8DX at: https://mkwrs.com/mk8dx\n"
+                "See various top 10 leaderboards for MK8DX at: http://mkleaderboards.com/\n"
+                "Discuss Time Trials in the MKLeaderboards Discord server!: /discord\n\n"
+                "Enter the MK8DX time trial competition at: http://www.mariokartplayers.com/mk8\n"
+                "Join the MK8DX online competitive scene at: http://www.mariokartcentral.com/\n\n"
+                "If you want to watch WR videos for the Wii U version of MK8, refer to: /mk8records\n\n"
+                f"Recorded by: {recordedBy}"
+        )
+        print("Generated video description...")
+        return desc
 
     def getTimeDifference(self):
         wrTime = self.convertTimeString(self.wr.time)
@@ -96,14 +102,14 @@ class AutoUploader:
             microsecond=previousWrTime["milliseconds"]*1000
         )
 
-        current, previous = wrTime.timestamp(), previousWrTime.timestamp()
-        difference = round(previous - current, 3)
+        current, prev = wrTime.timestamp(), previousWrTime.timestamp()
+        difference = round(prev - current, 3)
 
         return difference
 
 
     def convertTimeString(self, time):
-        time = time.replace("'", " ").replace("\"", " ").split()
+        time = time.replace(":", " ").replace(".", " ").split()
         try:
             converted = {
                 "minutes": int(time[0]),
@@ -127,220 +133,23 @@ class WorldRecord:
     def __init__(self, scrapedData: list) -> None:
         d = scrapedData
         self.date = d[0]
-        self.time = d[1]
+        self.time = d[1].replace("'", ":").replace("\"", ".").strip()
         self.player = d[2]
-        self.daysSinceLastWr = d[4]
-        self.laps = [d[5], d[6], d[7]]
+        self.lasted = d[4]
+        self.splits = f"{d[5]} - {d[6]} - {d[7]}"
         self.coins = d[8]
         self.shrooms = d[9]
         self.character = d[10]
-        self.combo = [d[11], d[12], d[13]]
+        self.kart = d[11]
+        self.wheels = d[12]
+        self.glider = d[13]
         self.map = d[14]
         self.cc = d[15]
+        self.profile = d[16]
 
 
 while True:
     auto = AutoUploader()
     auto.scrapeWr()
-    print(auto.generateVideoTitle())
-    wr = auto.wr
-    auto.generateVideoDescription()
-
-
-# scrape
-# upload to youtube
-# generate video information
-
-# if config empty: "Missing credentials in config file", else proceed
-# paste link to track (e.g. https://www.mkwrs.com/mk8dx/display.php?track=Shy+Guy+Falls)
-#   check if valid link
-# scraper retrieves:
-#   track player
-#   150cc or 200cc
-#   current wr: time, player, coins, laps, character and combo
-#   previous wr holder, time, and player
-# takes input: local URI to video (e.g. C:\user\videos\recorded_wr.mp4)
-# gets youtube API credentials from config
-# gets "recorded by" config attribute (if future GUI version let input field become populated with this value in case person wants to quickly replayer for some reason)
-# generate video title
-# generate video description
-# upload to channel
-
-"""
-import httplib
-import httplib2
-import os
-import random
-import sys
-import time
-
-from apiclient.discovery import build
-from apiclient.errors import HttpError
-from apiclient.http import MediaFileUpload
-from oauth2client.client import flow_from_clientsecrets
-from oauth2client.file import Storage
-from oauth2client.tools import argparser, run_flow
-
-# Explicitly tell the underlying HTTP transport library not to retry, since
-# we are handling retry logic ourselves.
-httplib2.RETRIES = 1
-
-# Maximum number of times to retry before giving up.
-MAX_RETRIES = 10
-
-# Always retry when these exceptions are raised.
-RETRIABLE_EXCEPTIONS = (httplib2.HttpLib2Error, IOError, httplib.NotConnected,
-httplib.IncompleteRead, httplib.ImproperConnectionState,
-httplib.CannotSendRequest, httplib.CannotSendHeader,
-httplib.ResponseNotReady, httplib.BadStatusLine)
-
-# Always retry when an apiclient.errors.HttpError with one of these status
-# codes is raised.
-RETRIABLE_STATUS_CODES = [500, 502, 503, 504]
-
-# The CLIENT_SECRETS_FILE variable specifies the player of a file that contains
-# the OAuth 2.0 information for this application, including its client_id and
-# client_secret. You can acquire an OAuth 2.0 client ID and client secret from
-# the Google API Console at
-# https://console.cloud.google.com/.
-# Please ensure that you have enabled the YouTube Data API for your project.
-# For more information about using OAuth2 to access the YouTube Data API, see:
-#   https://developers.google.com/youtube/v3/guides/authentication
-# For more information about the client_secrets.json file format, see:
-#   https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
-CLIENT_SECRETS_FILE = "client_secrets.json"
-
-# This OAuth 2.0 access scope allows an application to upload files to the
-# authenticated user's YouTube channel, but doesn't allow other types of access.
-YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
-YOUTUBE_API_SERVICE_player = "youtube"
-YOUTUBE_API_VERSION = "v3"
-
-# This variable defines a message to display if the CLIENT_SECRETS_FILE is
-# missing.
-MISSING_CLIENT_SECRETS_MESSAGE = 
-WARNING: Please configure OAuth 2.0
-
-To make this sample run you will need to populate the client_secrets.json file
-found at:
-
-%s
-
-with information from the API Console
-https://console.cloud.google.com/
-
-For more information about the client_secrets.json file format, please visit:
-https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
- % os.path.abspath(os.path.join(os.path.dirplayer(__file__),
-                                CLIENT_SECRETS_FILE))
-
-VALID_PRIVACY_STATUSES = ("public", "private", "unlisted")
-
-
-def get_authenticated_service(args):
-    flow = flow_from_clientsecrets(CLIENT_SECRETS_FILE,
-        scope=YOUTUBE_UPLOAD_SCOPE,
-        message=MISSING_CLIENT_SECRETS_MESSAGE)
-
-    storage = Storage("%s-oauth2.json" % sys.argv[0])
-    credentials = storage.get()
-
-    if credentials is None or credentials.invalid:
-        credentials = run_flow(flow, storage, args)
-
-    return build(YOUTUBE_API_SERVICE_player, YOUTUBE_API_VERSION,
-        http=credentials.authorize(httplib2.Http()))
-
-def initialize_upload(youtube, options):
-    tags = None
-    if options.keywords:
-        tags = options.keywords.split(",")
-
-    body=dict(
-        snippet=dict(
-            title=options.title,
-            description=options.description,
-            tags=tags,
-            categoryId=options.category
-        ),
-        status=dict(
-            privacyStatus=options.privacyStatus
-        )
-    )
-
-    # Call the API's videos.insert method to create and upload the video.
-    insert_request = youtube.videos().insert(
-        part=",".join(body.keys()),
-        body=body,
-        # The chunksize parameter specifies the size of each chunk of data, in
-        # bytes, that will be uploaded at a time. Set a higher value for
-        # reliable connections as fewer chunks lead to faster uploads. Set a lower
-        # value for better recovery on less reliable connections.
-        #
-        # Setting "chunksize" equal to -1 in the code below means that the entire
-        # file will be uploaded in a single HTTP request. (If the upload fails,
-        # it will still be retried where it left off.) This is usually a best
-        # practice, but if you're using Python older than 2.6 or if you're
-        # running on App Engine, you should set the chunksize to something like
-        # 1024 * 1024 (1 megabyte).
-        media_body=MediaFileUpload(options.file, chunksize=-1, resumable=True)
-    )
-
-    resumable_upload(insert_request)
-
-    # This method implements an exponential backoff strategy to resume a
-    # failed upload.
-def resumable_upload(insert_request):
-    response = None
-    error = None
-    retry = 0
-    while response is None:
-        try:
-            print("Uploading file...")
-            status, response = insert_request.next_chunk()
-            if response is not None:
-                if 'id' in response:
-                    print("Video id '%s' was successfully uploaded." % response['id'])
-                else:
-                    exit("The upload failed with an unexpected response: %s" % response)
-        except HttpError as e:
-            if e.resp.status in RETRIABLE_STATUS_CODES:
-                error = "A retriable HTTP error %d occurred:\n%s" % (e.resp.status, e.content)
-            else:
-                raise 
-        except RETRIABLE_EXCEPTIONS as e:
-            error = "A retriable error occurred: %s" % e
-
-        if error is not None:
-            print(error)
-            retry += 1
-            if retry > MAX_RETRIES:
-                exit("No longer attempting to retry.")
-
-            max_sleep = 2 ** retry
-            sleep_seconds = random.random() * max_sleep
-            print("Sleeping %f seconds and then retrying..." % sleep_seconds)
-            time.sleep(sleep_seconds)
-
-if __player__ == '__main__':
-    argparser.add_argument("--file", required=True, help="Video file to upload")
-    argparser.add_argument("--title", help="Video title", default="Test Title")
-    argparser.add_argument("--description", help="Video description", default="Test Description")
-    argparser.add_argument("--category", default="22",
-help="Numeric video category. " +
-    "See https://developers.google.com/youtube/v3/docs/videoCategories/list")
-    argparser.add_argument("--keywords", help="Video keywords, comma separated",
-default="")
-    argparser.add_argument("--privacyStatus", choices=VALID_PRIVACY_STATUSES,
-default=VALID_PRIVACY_STATUSES[0], help="Video privacy status.")
-    args = argparser.parse_args()
-
-    if not os.path.exists(args.file):
-        exit("Please specify a valid file using the --file= parameter.")
-
-    youtube = get_authenticated_service(args)
-    try:
-        initialize_upload(youtube, args)
-    except HttpError as e:
-        print("An HTTP error %d occurred:\n%s" % (e.resp.status, e.content))
-        """
+    auto.generateVideoTitle()
+    print(auto.generateVideoDescription())
