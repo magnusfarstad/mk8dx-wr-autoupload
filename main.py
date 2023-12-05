@@ -68,9 +68,11 @@ class AutoUploader:
 
     def generateVideoDescription(self):
         current, prev = self.wr, self.previousWr
+        difference = self.getTimeDifference(current.time, prev.time)
         plural = "s" if current.lasted != "<1" else ""
+        
         desc = (f"Date: {current.date}\n"
-                f"{self.getTimeDifference()} improvement over previous WR: {prev.time} by {prev.player} on {prev.date} lasted ({current.lasted} day{plural})\n\n"
+                f"{difference} improvement over previous WR: {prev.time} by {prev.player} on {prev.date} (lasted {current.lasted} day{plural})\n\n"
                 f"Combo: {current.character} / {current.kart} / {current.wheels} / {current.glider}\n"
                 f"Splits: {current.splits}\n"
                 f"Mushrooms: {current.shrooms}\n"
@@ -87,15 +89,15 @@ class AutoUploader:
         print("Generated video description...")
         return desc
 
-    def getTimeDifference(self):
-        wrTime = self.convertTimeString(self.wr.time)
+    def getTimeDifference(self, t1, t2):
+        wrTime = self.convertTimeString(t1)
         wrTime = datetime(2000, 1, 1,
             minute=wrTime["minutes"],
             second=wrTime["seconds"],
             microsecond=wrTime["milliseconds"]*1000
         )
 
-        previousWrTime = self.convertTimeString(self.previousWr.time)
+        previousWrTime = self.convertTimeString(t2)
         previousWrTime = datetime(2000, 1, 1,
             minute=previousWrTime["minutes"],
             second=previousWrTime["seconds"],
